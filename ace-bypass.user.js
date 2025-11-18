@@ -101,8 +101,8 @@
 // @grant        none
 // @homepageURL  https://ace-bypass.com/
 // @icon         https://cdn.discordapp.com/icons/1241310717936926730/9c45d7f3750856348e894ea53ac8100d.png?size=1024
-// @updateURL    https://github.com/ace221390/userscript
-// @downloadURL  https://github.com/ace221390/userscript
+// @updateURL    https://github.com/ace221390/userscript/raw/refs/heads/main/ace-bypass.user.js
+// @downloadURL  https://github.com/ace221390/userscript/raw/refs/heads/main/ace-bypass.user.js
 // ==/UserScript==
 
 (async () => {
