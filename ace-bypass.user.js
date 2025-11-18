@@ -110,7 +110,7 @@
     if (window.top !== window.self) { return; }
     const config = {
         Ask_before_bypass: true, // Change the true to false if you want bypass to be automatic and not ask you everytime before bypass.
-        time: 10 // Set the time to 25 Seconds or more to avoid detection on high risk sites like (Luarmor, etc).
+        time: 25 // Set the time to 25 Seconds or more to avoid detection on high risk sites like (Luarmor, etc).
     };
 
     function createContainer() {
