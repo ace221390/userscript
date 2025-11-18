@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         ACE Bypass Helper (Universal)
+// @name         ACE Bypass
 // @namespace    https://ace-bypass.com/
-// @version      1.0.0
-// @description  Intercepts adlink pages, offers an ACE bypass flow and automates redirect handling (works with ACE API /redirect). Configurable Ask_Before_BYPASS behavior.
+// @version      2.0.1
+// @description  The #1 Userscript to bypass all that you need.
 // @author       ACE
 // @match        *://auth.platoboost.app/*
 // @match        *://*.linkvertise.com/*
 // @match        *://linkvertise.com/*
-// @match        *://*.kr2nl.cat/checkpoint*
-// @match        *://krn2l.cat/checkpoint*
+// @match        *://*.k2rnl.cat/checkpoint*
+// @match        *://kr2nl.cat/checkpoint*
 // @match        *://*.auth.platoboost.net/*
 // @match        *://auth.platoboost.net/*
 // @match        *://*.auth.platorelay.com/*
@@ -97,8 +97,6 @@
 // @match        *://tpi.li/key-system*
 // @match        *://*.ytsubme.com/*
 // @match        *://ytsubme.com/*
-// @match        *://ace-bypass.com/*
-// @match        *://www.ace-bypass.com/*
 // @run-at       document-start
 // @grant        none
 // @homepageURL  https://ace-bypass.com/
@@ -107,477 +105,667 @@
 // @downloadURL  https://github.com/ace221390/userscript
 // ==/UserScript==
 
-(function () {
-  'use strict';
+(async () => {
+    'use strict';
+    if (window.top !== window.self) { return; }
+    const config = {
+        Ask_before_bypass: true, // Change the true to false if you want bypass to be automatic and not ask you everytime before bypass.
+        time: 10 // Set the time to 25 Seconds or more to avoid detection on high risk sites like (Luarmor, etc).
+    };
 
-  const CONFIG = {
-    Ask_Before_BYPASS: true,
-    ACE_BYPASS_HOST: 'https://www.ace-bypass.com',
-    USERSCRIPT_URL: 'https://github.com/ace221390/userscript'
-  };
+    function createContainer() {
+        const container = document.createElement('div');
+        container.id = 'userscript-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 36px;
+            z-index: 2147483647;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
+            pointer-events: auto;
+            background: rgba(0,0,0,0.98);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            overflow: hidden;
+        `;
 
-  const dbg = (...args) => {};
-  const qs = (k, src) => {
-    const s = new URLSearchParams((src || location.search));
-    return s.get(k);
-  };
-  const safeEncode = (u) => encodeURIComponent(String(u || ''));
+        container.innerHTML = `
+            <div style="
+                width: 100%;
+                max-width: 760px;
+                border-radius: 18px;
+                padding: 28px;
+                background: linear-gradient(180deg, #141414, #0b0b0b);
+                border: 2px solid rgba(255,215,0,0.12);
+                box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 8px 20px rgba(255,215,0,0.04);
+                color: #eaeaea;
+            ">
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;">
+                    <div style="
+                        width:56px;height:56px;border-radius:12px;
+                        background: linear-gradient(135deg,#FFD700,#FFB84D);
+                        box-shadow: 0 10px 28px rgba(255,215,0,0.18);
+                        display:flex;align-items:center;justify-content:center;overflow:hidden;
+                    ">
+                        <img src="https://i.imgur.com/KsH0BED.png" alt="ACE" style="width:100%;height:100%;object-fit:cover;">
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:20px;font-weight:900;color:#FFD700;letter-spacing:-0.4px;">ACE USERSCRIPT</div>
+                        <div style="font-size:13px;color:#bdbdbd;margin-top:4px;font-weight:600;">ACE USERSCRIPT</div>
+                    </div>
+                </div>
 
-  function detectMetaRefresh() {
-    try {
-      const meta = document.querySelector('meta[http-equiv][content]');
-      if (!meta) return null;
-      const httpEq = (meta.getAttribute('http-equiv') || '').toLowerCase();
-      if (httpEq !== 'refresh') return null;
-      const content = meta.getAttribute('content') || '';
-      const parts = content.split(';');
-      const ttl = parseInt(parts[0], 10) || 0;
-      let url = null;
-      if (parts.length > 1) {
-        const m = parts.slice(1).join(';').match(/url=(.*)/i);
-        if (m) url = m[1].trim().replace(/^["']|['"]$/g,'');
-      }
-      return {ttl, url};
-    } catch(e) { return null; }
-  }
+                <p style="margin:12px 0 20px 0;font-size:15px;color:#d7d7d7;line-height:1.45;">
+                    Click <strong style="color:#FFD700">Next</strong> to continue to the destination. If a temporary hash is present the button must be pressed before it expires.
+                </p>
 
-  function overrideLocationMethods() {
-    try {
-      const origAssign = window.location.assign;
-      const origReplace = window.location.replace;
-      window.location.assign = function(newUrl) {
-        dbg('Intercept assign ->', newUrl);
-        handlePotentialRedirect(newUrl);
-      };
-      window.location.replace = function(newUrl) {
-        dbg('Intercept replace ->', newUrl);
-        handlePotentialRedirect(newUrl);
-      };
-    } catch (e) {
-      dbg('Unable to override location methods', e);
+                <div id="countdown" style="font-size:14px;margin-bottom:18px;padding:10px;background:#0f0f0f;border-radius:10px;border:1px solid rgba(255,255,255,0.03);color:#cfcfcf;"></div>
+
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <button id="nextBtn" type="button" style="
+                        padding:12px 26px;
+                        background: linear-gradient(135deg,#FFD700,#FFB84D);
+                        color:#000;
+                        border:none;
+                        border-radius:10px;
+                        cursor:pointer;
+                        font-weight:900;
+                        font-size:15px;
+                        box-shadow: 0 10px 28px rgba(255,215,0,0.18);
+                        transition: transform 0.18s ease, box-shadow 0.18s ease;
+                    ">Next</button>
+
+                    <div id="spinner" style="border:5px solid #222;border-top:5px solid #FFD700;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;display:none;"></div>
+                </div>
+
+                <div id="errorMsg" style="color:#ff6b6b;margin-top:18px;display:none;background:#1b1b1b;padding:10px;border-radius:8px;"></div>
+
+                <style>
+                    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                    #nextBtn:hover { transform: translateY(-3px); }
+                    #nextBtn:active { transform: translateY(0); }
+                    #nextBtn:disabled {
+                        pointer-events: none;
+                        opacity: 0.6;
+                        cursor: not-allowed;
+                    }
+                </style>
+            </div>
+        `;
+        return container;
     }
-  }
 
-  function overrideWindowOpen() {
-    try {
-      const origOpen = window.open;
-      window.open = function(url, name, specs) {
-        dbg('Intercept open ->', url);
-        handlePotentialRedirect(url);
-        return origOpen.call(window, url, name, specs);
-      };
-    } catch (e) {
-      dbg('unable to override window.open', e);
+    function showError(message) {
+        const errorEl = document.getElementById('errorMsg');
+        if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+        console.error(message);
     }
-  }
 
-  function handlePotentialRedirect(targetUrl) {
-    if (!targetUrl || typeof targetUrl !== 'string') return;
-    try {
-      const absolute = new URL(targetUrl, location.href).href;
-      if (absolute.includes('ace-redirect=')) {
-        handleAceRedirectParamFromLink(absolute);
-        return;
-      }
-      if (CONFIG.Ask_Before_BYPASS) {
-        showConfirmationOverlayForCurrentPage();
-      } else {
-        const dest = CONFIG.ACE_BYPASS_HOST + '/bypass?url=' + safeEncode(absolute);
-        window.location.href = dest;
-      }
-    } catch (e) {
-      dbg('invalid url in potential redirect:', targetUrl);
+    function isValidUrl(url) {
+        try {
+            new URL(url);
+            return true;
+        } catch {
+            return false;
+        }
     }
-  }
 
-  const STYLE_ID = 'ace-bypass-userscript-style';
-  const OVERLAY_ID = 'ace-bypass-userscript-overlay';
-  const MODAL_ID = 'ace-bypass-userscript-modal';
+    function normalizeUrlIfPossible(candidate) {
+        if (!candidate || typeof candidate !== 'string') return null;
+        try {
+            return new URL(candidate).href;
+        } catch {
+            try {
+                return new URL('https://' + candidate).href;
+            } catch {
+                return null;
+            }
+        }
+    }
 
-  function injectStyles() {
-    if (document.getElementById(STYLE_ID)) return;
-    const css = `
+    function extractAceredirectFromString(s) {
+        if (!s || typeof s !== 'string') return null;
+        const re = /(?:[?&\#]|^|;|%3F|%26)aceredirect=([^&#\s]+)/i;
+        const m = s.match(re);
+        if (m && m[1]) {
+            return m[1];
+        }
+        return null;
+    }
+
+    function findAceredirectParam() {
+        try {
+            const sp = new URLSearchParams(window.location.search || '');
+            const direct = sp.get('aceredirect');
+            if (direct) return direct;
+        } catch (err) {
+        }
+
+        const fromHash = extractAceredirectFromString(window.location.hash || '');
+        if (fromHash) return fromHash;
+
+        let candidate = extractAceredirectFromString(window.location.href || '');
+        if (candidate) return candidate;
+
+        let hrefToCheck = window.location.href || '';
+        for (let i = 0; i < 5; i++) {
+            try {
+                const decoded = decodeURIComponent(hrefToCheck);
+                if (decoded === hrefToCheck) break;
+                hrefToCheck = decoded;
+                const found = extractAceredirectFromString(hrefToCheck);
+                if (found) return found;
+            } catch (err) {
+                break;
+            }
+        }
+
+        return null;
+    }
+
+    const STYLE_ID = 'ace-bypass-userscript-style';
+    const OVERLAY_ID = 'ace-bypass-userscript-overlay';
+    const MODAL_ID = 'ace-bypass-userscript-modal';
+
+    function injectStyles() {
+      if (document.getElementById(STYLE_ID)) return;
+      const css = `
+      @keyframes ace-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+      @keyframes ace-slide-up {
+        from { transform: translateY(30px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
       .ace-usp-overlay {
-        position:fixed;
-        inset:0;
-        z-index:2147483646;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        pointer-events:auto;
+        position: fixed;
+        inset: 0;
+        z-index: 2147483646;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: auto;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       }
       .ace-usp-backdrop {
-        position:absolute;
-        inset:0;
-        background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.7));
-        backdrop-filter: blur(6px) saturate(1.1);
-        -webkit-backdrop-filter: blur(6px) saturate(1.1);
-        opacity:0;
-        transition: opacity 300ms ease;
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(0,0,0,0.75), rgba(20,20,20,0.85));
+        backdrop-filter: blur(8px) saturate(1.1);
+        -webkit-backdrop-filter: blur(8px) saturate(1.1);
+        opacity: 0;
+        transition: opacity 400ms cubic-bezier(0.4, 0, 0.2, 1);
       }
-      .ace-usp-overlay.show .ace-usp-backdrop { opacity:1; }
+      .ace-usp-overlay.show .ace-usp-backdrop {
+        opacity: 1;
+      }
       .ace-usp-page-blur {
-        filter: blur(6px) brightness(0.55) saturate(0.9);
+        filter: blur(4px) brightness(0.6);
         pointer-events: none !important;
         user-select: none !important;
       }
       .ace-usp-modal {
-        position:relative;
-        z-index:2147483647;
-        max-width:820px;
-        width:92%;
-        border-radius:14px;
-        background: linear-gradient(180deg, #fff, #fff8e6);
-        color:#111;
-        box-shadow: 0 30px 120px rgba(0,0,0,0.45);
-        padding:22px;
-        transform: translateY(18px);
-        opacity:0;
-        transition: transform 360ms cubic-bezier(.22,.9,.3,1), opacity 260ms ease;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        position: relative;
+        z-index: 2147483647;
+        max-width: 520px;
+        width: 90%;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #1a1a1a, #0d0d0d);
+        border: 2px solid rgba(255, 215, 0, 0.3);
+        box-shadow: 0 40px 100px rgba(0,0,0,0.8), 0 0 80px rgba(255, 215, 0, 0.15);
+        padding: 32px;
+        transform: translateY(40px) scale(0.95);
+        opacity: 0;
+        transition: all 450ms cubic-bezier(0.34, 1.56, 0.64, 1);
       }
       .ace-usp-overlay.show .ace-usp-modal {
-        transform: translateY(0);
-        opacity:1;
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      .ace-usp-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .ace-usp-logo {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(255, 215, 0, 0.4);
+        animation: ace-pulse 3s ease-in-out infinite;
+        overflow: hidden;
+      }
+      .ace-usp-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
       .ace-usp-title {
-        display:flex;
-        gap:12px;
-        align-items:center;
-        font-weight:900;
-        color:#6b7ce8;
-        font-size:22px;
+        flex: 1;
       }
-      .ace-usp-desc { margin-top:6px; color:#333; font-weight:600; font-size:15px; }
-      .ace-usp-sub { color:#666; font-size:13px; margin-top:8px; }
-      .ace-usp-actions { margin-top:18px; display:flex; gap:10px; justify-content:flex-end; align-items:center; }
+      .ace-usp-title h2 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 900;
+        color: #FFD700;
+        letter-spacing: -0.5px;
+        text-shadow: 0 2px 12px rgba(255, 215, 0, 0.3);
+      }
+      .ace-usp-subtitle {
+        margin: 4px 0 0 0;
+        font-size: 13px;
+        color: #888;
+        font-weight: 600;
+      }
+      .ace-usp-content {
+        margin-bottom: 28px;
+      }
+      .ace-usp-message {
+        font-size: 16px;
+        color: #fff;
+        line-height: 1.6;
+        font-weight: 500;
+        margin-bottom: 12px;
+      }
+      .ace-usp-url-display {
+        background: rgba(255, 215, 0, 0.08);
+        border: 1px solid rgba(255, 215, 0, 0.2);
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 13px;
+        color: #FFD700;
+        word-break: break-all;
+        font-family: 'Courier New', monospace;
+        max-height: 80px;
+        overflow-y: auto;
+      }
+      .ace-usp-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+      }
       .ace-usp-btn {
-        padding:10px 14px; border-radius:10px; border:0; cursor:pointer; font-weight:800;
-        display:inline-flex; gap:8px; align-items:center;
+        flex: 1;
+        padding: 14px 24px;
+        border-radius: 12px;
+        border: none;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
       }
-      .ace-usp-btn.yes { background:#6b7ce8; color:white; box-shadow: 0 8px 24px rgba(107,124,232,0.2); }
-      .ace-usp-btn.no { background:#efefef; color:#333; border:2px solid rgba(0,0,0,0.04); }
-      .ace-usp-animated {
-        width:44px; height:44px; border-radius:8px; background:linear-gradient(135deg,#fff,#eaf0ff); display:inline-flex; align-items:center; justify-content:center; box-shadow: inset 0 -6px 18px rgba(107,124,232,0.06);
-        transition: transform 300ms ease;
+      .ace-usp-btn:hover {
+        transform: translateY(-2px);
       }
-      .ace-usp-btn.yes .ace-usp-animated { transform: translateY(-3px); }
-      .ace-usp-animated svg { width:22px; height:22px; }
-      .ace-usp-footer { margin-top:12px; font-size:13px; color:#444; display:flex; justify-content:space-between; align-items:center; gap:10px; }
-      .ace-usp-scroll {
-        margin-top:12px; max-height:220px; overflow:auto; background: #fff; color:#111; padding:10px; border-radius:8px; border:1px solid rgba(0,0,0,0.06);
+      .ace-usp-btn:active {
+        transform: translateY(0);
+      }
+      .ace-usp-btn.yes {
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        color: #000;
+        box-shadow: 0 8px 24px rgba(255, 215, 0, 0.4);
+      }
+      .ace-usp-btn.yes:hover {
+        box-shadow: 0 12px 32px rgba(255, 215, 0, 0.6);
+        background: linear-gradient(135deg, #FFE44D, #FFB84D);
+      }
+      .ace-usp-btn.no {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+      }
+      .ace-usp-btn.no:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+      .ace-usp-footer {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+      }
+      .ace-redirect-ui {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        z-index: 2147483647;
+        background: linear-gradient(135deg, #1a1a1a, #0d0d0d);
+        border: 2px solid rgba(255, 215, 0, 0.4);
+        border-radius: 16px;
+        padding: 20px 24px;
+        max-width: 400px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 40px rgba(255, 215, 0, 0.2);
+        animation: ace-slide-up 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .ace-redirect-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 16px;
+        font-weight: 800;
+        color: #FFD700;
+        margin-bottom: 12px;
+      }
+      .ace-redirect-spinner {
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 215, 0, 0.2);
+        border-top-color: #FFD700;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      .ace-redirect-info {
+        font-size: 13px;
+        color: #aaa;
+        line-height: 1.5;
+        word-break: break-all;
+      }
+      .ace-redirect-label {
+        color: #888;
+        font-weight: 600;
+        margin-bottom: 4px;
       }
     `;
-    const s = document.createElement('style');
-    s.id = STYLE_ID;
-    s.textContent = css;
-    (document.head || document.documentElement).appendChild(s);
-  }
+      const s = document.createElement('style');
+      s.id = STYLE_ID;
+      s.textContent = css;
+      (document.head || document.documentElement).appendChild(s);
+    }
 
-  function buildOverlayDOM() {
-    if (document.getElementById(OVERLAY_ID)) return;
-    const overlay = document.createElement('div');
-    overlay.id = OVERLAY_ID;
-    overlay.className = 'ace-usp-overlay';
-    overlay.innerHTML = `
+    function buildOverlayDOM() {
+      if (document.getElementById(OVERLAY_ID)) return;
+      const overlay = document.createElement('div');
+      overlay.id = OVERLAY_ID;
+      overlay.className = 'ace-usp-overlay';
+      overlay.innerHTML = `
       <div class="ace-usp-backdrop" aria-hidden="true"></div>
       <div class="ace-usp-modal" id="${MODAL_ID}" role="dialog" aria-modal="true">
-        <div class="ace-usp-title">
-          <div class="ace-usp-animated" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#6B7CE8"/></svg>
+        <div class="ace-usp-header">
+          <div class="ace-usp-logo" aria-hidden="true">
+            <img src="https://i.imgur.com/KsH0BED.png" alt="ACE">
           </div>
-          <div>ACE BYPASS</div>
+          <div class="ace-usp-title">
+            <h2>ACE BYPASS</h2>
+            <div class="ace-usp-subtitle">Adlink Bypasser – fast, simple, reliable</div>
+          </div>
         </div>
-        <div class="ace-usp-desc">Do you want to bypass this ad-link?</div>
-        <div class="ace-usp-sub">Powered by ACE BYPASS • USING ACE API</div>
-        <div class="ace-usp-scroll" id="ace-usp-scroll" style="display:none;"></div>
-        <div class="ace-usp-actions" id="ace-usp-actions">
-          <button class="ace-usp-btn no" id="ace-usp-no">✖ No</button>
-          <button class="ace-usp-btn yes" id="ace-usp-yes">✅ Yes</button>
+        <div class="ace-usp-content">
+          <div class="ace-usp-message">
+            Do you want to bypass this ad link page?
+          </div>
+          <div class="ace-usp-url-display" id="ace-usp-url"></div>
+        </div>
+        <div class="ace-usp-actions">
+          <button class="ace-usp-btn no" id="ace-usp-no">
+            <span>Cancel</span>
+          </button>
+          <button class="ace-usp-btn yes" id="ace-usp-yes">
+            <span>Bypass Now</span>
+          </button>
         </div>
         <div class="ace-usp-footer">
-          <div style="color:#666">Choose an action to proceed.</div>
+          Powered by ACE BYPASS • Using ACE API
         </div>
       </div>
     `;
-    document.documentElement.appendChild(overlay);
-    const yes = overlay.querySelector('#ace-usp-yes');
-    const no = overlay.querySelector('#ace-usp-no');
-    yes.addEventListener('click', () => {
-      try {
-        const current = location.href;
-        const dest = CONFIG.ACE_BYPASS_HOST + '/bypass?url=' + safeEncode(current);
-        location.href = dest;
-      } catch (e) {
-        dbg('Yes click error', e);
+      document.documentElement.appendChild(overlay);
+
+      const urlDisplay = overlay.querySelector('#ace-usp-url');
+      if (urlDisplay) {
+        urlDisplay.textContent = location.href;
       }
-    }, {capture:false});
-    no.addEventListener('click', () => {
-      hideOverlay();
-    }, {capture:false});
-  }
 
-  function showOverlay() {
-    injectStyles();
-    buildOverlayDOM();
-    const overlay = document.getElementById(OVERLAY_ID);
-    if (!overlay) return;
-    try {
-      (document.body || document.documentElement).classList.add('ace-usp-page-blur');
-    } catch (e) {}
-    overlay.classList.add('show');
-    try {
-      const modal = overlay.querySelector(`#${MODAL_ID}`);
-      if (modal) modal.focus();
-    } catch (e) {}
-  }
+      const yes = overlay.querySelector('#ace-usp-yes');
+      const no = overlay.querySelector('#ace-usp-no');
 
-  function hideOverlay() {
-    const overlay = document.getElementById(OVERLAY_ID);
-    if (overlay) overlay.classList.remove('show');
-    try {
-      (document.body || document.documentElement).classList.remove('ace-usp-page-blur');
-    } catch (e) {}
-    setTimeout(() => {
-      try {
-        const el = document.getElementById(OVERLAY_ID);
-        if (el && el.parentNode) el.parentNode.removeChild(el);
-      } catch(e){}
-    }, 400);
-  }
-
-  function handleAceRedirectParamFromLink(linkHref) {
-    try {
-      const url = new URL(linkHref);
-      const aceVal = url.searchParams.get('ace-redirect');
-      if (!aceVal) return;
-      try {
-        (document.body || document.documentElement).classList.add('ace-usp-page-blur');
-      } catch (e) {}
-      const existing = document.getElementById('ace-ace-redirect-overlay');
-      if (!existing) {
-        const ov = document.createElement('div');
-        ov.id = 'ace-ace-redirect-overlay';
-        ov.style.position = 'fixed';
-        ov.style.inset = '0';
-        ov.style.zIndex = '2147483646';
-        ov.style.background = 'rgba(0,0,0,0.65)';
-        document.documentElement.appendChild(ov);
-      }
-      const decoded = aceVal;
-      window.location.href = decoded;
-    } catch (e) {
-      dbg('handleAceRedirectParamFromLink error', e);
-    }
-  }
-
-  function interceptAnchorClicks(event) {
-    if (event.defaultPrevented) return;
-    if (event.button !== 0) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const a = event.target.closest && event.target.closest('a[href]');
-    if (!a) return;
-    const href = a.getAttribute('href') || '';
-    if (!href || href.startsWith('javascript:') || href.startsWith('#')) return;
-    let abs;
-    try {
-      abs = new URL(href, location.href).href;
-    } catch (e) { return; }
-    if (abs.indexOf(CONFIG.ACE_BYPASS_HOST) === 0) return;
-    if (abs.includes('ace-redirect=')) {
-      event.preventDefault();
-      event.stopPropagation();
-      handleAceRedirectParamFromLink(abs);
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const bypassUrl = CONFIG.ACE_BYPASS_HOST + '/bypass?url=' + safeEncode(abs);
-    if (CONFIG.Ask_Before_BYPASS) {
-      showOverlay();
-      const overlay = document.getElementById(OVERLAY_ID);
-      if (!overlay) {
-        window.location.href = bypassUrl;
-        return;
-      }
-      const yesBtn = overlay.querySelector('#ace-usp-yes');
-      const noBtn = overlay.querySelector('#ace-usp-no');
-      const cleanup = () => {
-        hideOverlay();
-      };
-      yesBtn.onclick = (ev) => {
-        ev.preventDefault();
-        window.location.href = bypassUrl;
-      };
-      noBtn.onclick = (ev) => {
-        ev.preventDefault();
-        cleanup();
-      };
-    } else {
-      window.location.href = bypassUrl;
-    }
-  }
-
-  function rewriteAnchorsToBypass() {
-    try {
-      const anchors = Array.from(document.getElementsByTagName('a'));
-      anchors.forEach(a => {
+      yes.addEventListener('click', () => {
         try {
-          const href = a.getAttribute('href');
-          if (!href) return;
-          const abs = new URL(href, location.href).href;
-          if (abs.indexOf(CONFIG.ACE_BYPASS_HOST) === 0) return;
-          if (abs.includes('ace-redirect=')) return;
-          if (!/^https?:\/\//i.test(abs)) return;
-          const bypassUrl = CONFIG.ACE_BYPASS_HOST + '/bypass?url=' + safeEncode(abs);
-          a.setAttribute('data-ace-original', href);
-          a.setAttribute('href', bypassUrl);
-        } catch (e) {}
-      });
-    } catch (e) { dbg('rewrite anchors failed', e); }
-  }
+          const pending = window.__ace_pending_wrap || null;
+          if (pending) {
+            window.__ace_pending_wrap = null;
+            location.href = pending;
+            return;
+          }
+          const current = location.href;
+          const dest = 'https://ace-bypass.com/bypass?url=' + encodeURIComponent(current) + '&time=' + encodeURIComponent(String(config.time || 10));
+          location.href = dest;
+        } catch (e) {
+        }
+      }, {capture:false});
 
-  function handleAceRedirectPage() {
-    try {
-      const isAce = location.hostname.endsWith('ace-bypass.com');
-      if (!isAce) return false;
-      const path = location.pathname || '';
-      if (!path.toLowerCase().includes('/redirect')) return false;
-      const urlParam = qs('url');
-      const fromParam = qs('from');
-      if (!urlParam) return false;
-      const target = decodeURIComponent(urlParam);
-      const from = fromParam ? decodeURIComponent(fromParam) : '';
-      showRedirectUI(target, from);
+      no.addEventListener('click', () => {
+        hideOverlay();
+      }, {capture:false});
+    }
+
+    function showOverlay() {
+      injectStyles();
+      buildOverlayDOM();
+      const overlay = document.getElementById(OVERLAY_ID);
+      if (!overlay) return;
+      try {
+        const elements = document.body ? document.body.children : document.documentElement.children;
+        Array.from(elements).forEach(el => {
+          if (el.id !== OVERLAY_ID && el.id !== STYLE_ID) {
+            el.classList.add('ace-usp-page-blur');
+          }
+        });
+      } catch (e) {}
+      requestAnimationFrame(() => {
+        overlay.classList.add('show');
+      });
+      try {
+        const modal = overlay.querySelector(`#${MODAL_ID}`);
+        if (modal) modal.focus();
+      } catch (e) {}
+    }
+
+    function hideOverlay() {
+      const overlay = document.getElementById(OVERLAY_ID);
+      if (overlay) overlay.classList.remove('show');
+      try {
+        const elements = document.body ? document.body.children : document.documentElement.children;
+        Array.from(elements).forEach(el => {
+          el.classList.remove('ace-usp-page-blur');
+        });
+      } catch (e) {}
       setTimeout(() => {
         try {
-          if (from) {
-            try {
-              const separator = from.includes('?') ? '&' : '?';
-              const newUrl = from + separator + 'ace-redirect=' + encodeURIComponent(target);
-              window.location.href = newUrl;
-              return;
-            } catch (e) {}
-          }
-          window.location.href = target;
-        } catch (e) {
-          dbg('redirect navigation failed', e);
-          window.location.href = target;
+          const el = document.getElementById(OVERLAY_ID);
+          if (el && el.parentNode) el.parentNode.removeChild(el);
+        } catch(e){}
+      }, 500);
+    }
+
+    function escapeHtml(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    try {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runScript, { once: true });
+        } else {
+            runScript();
         }
-      }, 3000);
-      return true;
-    } catch (e) {
-      dbg('handleAceRedirectPage error', e);
-      return false;
+
+        function runScript() {
+            let rawRedirect = findAceredirectParam();
+
+            if (rawRedirect) {
+                let candidate = rawRedirect;
+                for (let i = 0; i < 6; i++) {
+                    try {
+                        const decoded = decodeURIComponent(candidate);
+                        if (decoded === candidate) break;
+                        candidate = decoded;
+                    } catch (err) {
+                        break;
+                    }
+                }
+                candidate = candidate.replace(/^["']|["']$/g, '').trim();
+                const normalized = normalizeUrlIfPossible(candidate);
+                if (normalized) {
+                    rawRedirect = normalized;
+                } else {
+                    if (candidate && candidate.indexOf('%') !== -1) {
+                        try {
+                            const moreDecoded = decodeURIComponent(candidate);
+                            const norm2 = normalizeUrlIfPossible(moreDecoded);
+                            if (norm2) rawRedirect = norm2;
+                            else rawRedirect = candidate;
+                        } catch {
+                            rawRedirect = candidate;
+                        }
+                    } else {
+                        rawRedirect = candidate;
+                    }
+                }
+            }
+
+            if (!rawRedirect) {
+                const targetUrl = `https://ace-bypass.com/bypass?url=${encodeURIComponent(location.href)}&time=${encodeURIComponent(String(config.time || 10))}`;
+                if (config.Ask_before_bypass) {
+                    window.__ace_pending_wrap = targetUrl;
+                    showOverlay();
+                    return;
+                } else {
+                    location.replace(targetUrl);
+                    return;
+                }
+            }
+
+            let redirectUrl = rawRedirect;
+            if (!isValidUrl(redirectUrl)) {
+                const tryNorm = normalizeUrlIfPossible(redirectUrl);
+                if (tryNorm) {
+                    redirectUrl = tryNorm;
+                } else {
+                    try {
+                        const d = decodeURIComponent(redirectUrl);
+                        if (isValidUrl(d)) {
+                            redirectUrl = d;
+                        } else {
+                            const d2 = normalizeUrlIfPossible(d);
+                            if (d2) redirectUrl = d2;
+                        }
+                    } catch (err) {
+                    }
+                }
+            }
+
+            const container = createContainer();
+            if (document.body) {
+                document.body.appendChild(container);
+            } else {
+                document.documentElement.appendChild(container);
+            }
+
+            const countdownEl = container.querySelector('#countdown');
+            const btn = container.querySelector('#nextBtn');
+            const spinner = container.querySelector('#spinner');
+
+            const newBtn = btn;
+            const hasHash = (url) => {
+                try {
+                    return new URL(url).searchParams.has('hash') || url.includes('hash=');
+                } catch {
+                    return url.includes('hash=');
+                }
+            };
+
+            if (hasHash(redirectUrl)) {
+                let time = 8;
+                countdownEl.style.color = '#ff4d4d';
+                countdownEl.style.fontWeight = 'bold';
+                const interval = setInterval(() => {
+                    countdownEl.textContent = `YOU HAVE EXACTLY ${time} SECONDS TO CLICK THE BUTTON BEFORE YOUR HASH EXPIRES`;
+                    time--;
+                    if (time < 0) {
+                        clearInterval(interval);
+                        countdownEl.textContent = 'HASH EXPIRED. RETRYING...';
+                        countdownEl.style.color = '';
+                        countdownEl.style.fontWeight = '';
+                        newBtn.disabled = true;
+                        spinner.style.display = 'block';
+                        setTimeout(() => {
+                            location.replace(location.href.split('?')[0]);
+                        }, 3500);
+                    }
+                }, 1000);
+            } else {
+                countdownEl.style.display = 'none';
+            }
+
+            const performRedirect = () => {
+                if (!redirectUrl || newBtn.disabled) return;
+                try {
+                    newBtn.disabled = true;
+                    spinner.style.display = 'block';
+                    setTimeout(() => {
+                        try {
+                            window.location.assign(redirectUrl);
+                        } catch (err) {
+                            window.location.href = redirectUrl;
+                        }
+                    }, 60);
+                } catch (err) {
+                    showError('Redirect failed. Please copy and open the link manually: ' + redirectUrl);
+                    newBtn.disabled = false;
+                    spinner.style.display = 'none';
+                }
+            };
+
+            newBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                performRedirect();
+            }, { passive: false });
+
+            newBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                performRedirect();
+            }, { passive: false });
+
+            container.addEventListener('click', (e) => {
+                if (e.target && e.target.id === 'nextBtn') return;
+            });
+
+            try {
+                newBtn.setAttribute('aria-label', 'Proceed to link');
+                newBtn.tabIndex = 0;
+            } catch (err) { }
+        }
+    } catch (err) {
+        console.error('Userscript error:', err);
+        if (document.body) {
+            document.body.innerHTML = `<div style="color: #ff4d4d; text-align: center; padding: 40px; background: #121212; height: 100vh; display: flex; align-items: center; justify-content: center; font-size: 1.2em;">Error in bypass script: ${err && err.message ? err.message : err}. Please reload the page.</div>`;
+        }
     }
-  }
-
-  function handleAceRedirectParamOnPage() {
-    try {
-      const params = new URLSearchParams(location.search);
-      const aceVal = params.get('ace-redirect');
-      if (!aceVal) return false;
-      try {
-        (document.body || document.documentElement).classList.add('ace-usp-page-blur');
-      } catch (e) {}
-      const existing = document.getElementById('ace-ace-redirect-overlay');
-      if (!existing) {
-        const ov = document.createElement('div');
-        ov.id = 'ace-ace-redirect-overlay';
-        ov.style.position = 'fixed';
-        ov.style.inset = '0';
-        ov.style.zIndex = '2147483646';
-        ov.style.background = 'rgba(0,0,0,0.65)';
-        document.documentElement.appendChild(ov);
-      }
-      const decoded = aceVal;
-      window.location.href = decoded;
-      return true;
-    } catch (e) {
-      dbg('handleAceRedirectParamOnPage error', e);
-      return false;
-    }
-  }
-
-  function showRedirectUI(target, from) {
-    injectStyles();
-    const existing = document.getElementById('ace-redirect-ui');
-    if (existing) existing.remove();
-    const container = document.createElement('div');
-    container.id = 'ace-redirect-ui';
-    container.style.position = 'fixed';
-    container.style.right = '20px';
-    container.style.top = '20px';
-    container.style.zIndex = '2147483647';
-    container.style.background = 'linear-gradient(180deg,#fff,#fff8e6)';
-    container.style.color = '#111';
-    container.style.padding = '12px';
-    container.style.borderRadius = '10px';
-    container.style.boxShadow = '0 16px 40px rgba(0,0,0,0.35)';
-    container.style.maxWidth = 'min(60vw,520px)';
-    container.style.fontFamily = '-apple-system,Segoe UI,Roboto,Helvetica,Arial';
-    container.innerHTML = '<strong style="color:#6b7ce8">ACE</strong> — Redirecting...<div style="margin-top:8px;color:#333;font-size:13px;word-break:break-all">Referer (intended): '+escapeHtml(from || '(none)')+'</div>';
-    document.documentElement.appendChild(container);
-  }
-
-  function markRedirectDone(target, from) {
-    const el = document.getElementById('ace-redirect-ui');
-    if (el) {
-      el.innerHTML = '<strong style="color:#6b7ce8">ACE</strong> — Redirect sent.<div style="margin-top:8px;color:#333;font-size:13px">Referer (intended): '+escapeHtml(from || '(none)')+'</div>';
-      setTimeout(()=>{ try{ el.remove(); }catch(e){} }, 1800);
-    }
-  }
-
-  function escapeHtml(s) {
-    return String(s || '').replace(/&/g, '&amp;')
-      .replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  try {
-    overrideLocationMethods();
-    overrideWindowOpen();
-    const handledAceParamOnPage = handleAceRedirectParamOnPage();
-    if (handledAceParamOnPage) return;
-    const handledRedirect = handleAceRedirectPage();
-    if (handledRedirect) {
-      return;
-    }
-    if (CONFIG.Ask_Before_BYPASS) {
-      const showSoon = () => {
-        try {
-          if (location.hostname.endsWith('ace-bypass.com')) return;
-        } catch(e) {}
-        if (window.top !== window.self) return;
-        showOverlay();
-      };
-      if (document.readyState === 'loading') {
-        setTimeout(showSoon, 40);
-        document.addEventListener('DOMContentLoaded', () => {
-          setTimeout(showSoon, 40);
-        }, {once:true});
-      } else {
-        setTimeout(showSoon, 40);
-      }
-      document.addEventListener('click', interceptAnchorClicks, true);
-    } else {
-      document.addEventListener('click', interceptAnchorClicks, true);
-      document.addEventListener('DOMContentLoaded', rewriteAnchorsToBypass, {once:true});
-      const mo = new MutationObserver((mutations) => {
-        rewriteAnchorsToBypass();
-      });
-      try {
-        mo.observe(document.documentElement || document, {childList:true, subtree:true});
-      } catch (e) {}
-    }
-    try {
-      const meta = detectMetaRefresh();
-      if (meta && meta.url) {
-        handlePotentialRedirect(meta.url);
-      }
-    } catch (e) { dbg('meta refresh detection failed', e); }
-  } catch (e) {
-    dbg('userscript main error', e);
-  }
-
 })();
