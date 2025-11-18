@@ -153,7 +153,7 @@
                         box-shadow: 0 10px 28px rgba(255,215,0,0.18);
                         display:flex;align-items:center;justify-content:center;overflow:hidden;
                     ">
-                        <img src="https://i.imgur.com/KsH0BED.png" alt="ACE" style="width:100%;height:100%;object-fit:cover;">
+                        <img src="https://cdn.discordapp.com/icons/1241310717936926730/9c45d7f3750856348e894ea53ac8100d.png?size=1024" alt="ACE" style="width:100%;height:100%;object-fit:cover;">
                     </div>
                     <div style="flex:1;">
                         <div style="font-size:20px;font-weight:900;color:#FFD700;letter-spacing:-0.4px;">ACE USERSCRIPT</div>
@@ -508,7 +508,7 @@
       <div class="ace-usp-modal" id="${MODAL_ID}" role="dialog" aria-modal="true">
         <div class="ace-usp-header">
           <div class="ace-usp-logo" aria-hidden="true">
-            <img src="https://i.imgur.com/KsH0BED.png" alt="ACE">
+            <img src="https://cdn.discordapp.com/icons/1241310717936926730/9c45d7f3750856348e894ea53ac8100d.png?size=1024" alt="ACE">
           </div>
           <div class="ace-usp-title">
             <h2>ACE BYPASS</h2>
