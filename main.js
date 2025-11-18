@@ -7,8 +7,8 @@
 // @match        *://auth.platoboost.app/*
 // @match        *://*.linkvertise.com/*
 // @match        *://linkvertise.com/*
-// @match        *://*.k2rnl.cat/checkpoint*
-// @match        *://kr2nl.cat/checkpoint*
+// @match        *://*.krnl.cat/checkpoint*
+// @match        *://krnl.cat/checkpoint*
 // @match        *://*.auth.platoboost.net/*
 // @match        *://auth.platoboost.net/*
 // @match        *://*.auth.platorelay.com/*
